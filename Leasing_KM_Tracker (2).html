@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🚗 Leasing KM Tracker</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#0a0f1e;color:#e8edf5;min-height:100vh}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-thumb{background:rgba(0,112,243,.4);border-radius:99px}
+#setup-screen{position:fixed;inset:0;background:#0a0f1e;z-index:999;display:flex;align-items:center;justify-content:center;padding:20px}
+.setup-box{background:rgba(255,255,255,.04);border:1px solid rgba(0,120,255,.3);border-radius:16px;padding:32px;max-width:420px;width:100%}
+.setup-box h2{font-size:18px;color:#a8d4ff;margin-bottom:6px}
+.setup-box p{font-size:12px;color:#5a8ab0;margin-bottom:24px;line-height:1.6}
+.setup-label{font-size:11px;color:#5a8ab0;margin-bottom:5px;font-weight:600;letter-spacing:.04em}
+.setup-input{width:100%;background:rgba(255,255,255,.07);border:1px solid rgba(0,150,255,.3);border-radius:8px;padding:10px 12px;color:#fff;font-size:13px;outline:none;font-family:inherit;margin-bottom:14px}
+.setup-input:focus{border-color:rgba(0,150,255,.6)}
+.setup-btn{width:100%;padding:12px;border-radius:8px;border:none;cursor:pointer;background:linear-gradient(90deg,#0060d0,#0090ff);color:#fff;font-size:13px;font-weight:700;font-family:inherit;margin-top:4px}
+.setup-error{color:#ff6b6b;font-size:11px;margin-top:10px;display:none;line-height:1.5}
+.setup-note{font-size:10px;color:#3a5a70;margin-top:14px;line-height:1.6}
+#sync-bar{height:3px;background:transparent;position:fixed;top:0;left:0;right:0;z-index:200;transition:all .3s}
+#sync-bar.syncing{background:linear-gradient(90deg,#0070f3,#00c6ff);animation:sa 1s infinite}
+#sync-bar.error{background:#ff5555}
+#sync-bar.ok{background:#22d3a0}
+@keyframes sa{0%{opacity:.4}50%{opacity:1}100%{opacity:.4}}
+#sync-lbl{position:fixed;top:7px;right:14px;font-size:10px;color:#3a6080;z-index:201;display:none}
+nav{background:linear-gradient(90deg,#0d2240,#0a3060);border-bottom:1px solid rgba(0,150,255,.2);padding:0 20px;display:flex;align-items:center;height:54px;position:sticky;top:0;z-index:100;gap:10px}
+.nav-logo{width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#0070f3,#00c6ff);display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
+.nav-title .t1{font-size:12px;font-weight:700;color:#a8d4ff;letter-spacing:.06em;line-height:1.2}
+.nav-title .t2{font-size:9px;color:#3a6080;letter-spacing:.07em}
+.nav-tabs{margin-left:auto;display:flex;gap:5px}
+.tab{padding:5px 13px;border-radius:6px;border:none;cursor:pointer;font-size:11px;font-weight:600;background:rgba(255,255,255,.06);color:#6a9ec0;transition:all .15s;font-family:inherit}
+.tab.active{background:rgba(0,112,243,.85);color:#fff}
+.nav-sync{margin-left:8px;font-size:10px;color:#3a6080;cursor:pointer;padding:4px 8px;border-radius:5px;border:1px solid rgba(255,255,255,.08);background:none;font-family:inherit}
+.nav-sync:hover{color:#a8d4ff}
+main{max-width:1100px;margin:0 auto;padding:20px 16px}
+.panel{display:none}.panel.active{display:block}
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
+.kpi{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:11px;padding:16px 18px;position:relative;overflow:hidden}
+.kpi-icon{font-size:20px;margin-bottom:6px}
+.kpi-label{font-size:10px;color:#5a8ab0;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
+.kpi-val{font-size:20px;font-weight:700;letter-spacing:-.02em}
+.kpi-sub{font-size:10px;color:#3a5a70;margin-top:3px}
+.kpi-glow{position:absolute;right:-16px;top:-16px;width:64px;height:64px;border-radius:50%;opacity:.08}
+.card{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:11px;padding:18px 20px;margin-bottom:16px}
+.card-title{font-size:12px;font-weight:600;color:#a8d4ff;margin-bottom:14px}
+.prog-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:9px}
+.prog-bg{height:9px;background:rgba(255,255,255,.07);border-radius:99px;overflow:hidden}
+.prog-fill{height:100%;border-radius:99px;transition:width .8s ease}
+.prog-labels{display:flex;justify-content:space-between;margin-top:5px;font-size:10px;color:#2a4a60}
+.chart-wrap{position:relative;height:280px}
+.chart-legend{display:flex;gap:18px;margin-bottom:12px}
+.legend-item{display:flex;align-items:center;gap:6px;font-size:11px;color:#5a8ab0}
+.legend-dot{width:12px;height:3px;border-radius:99px}
+.year-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.year-card{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:9px;padding:12px 14px}
+.year-nr{font-size:15px;font-weight:700;color:#a8d4ff;margin-bottom:6px}
+.year-km{font-size:19px;font-weight:700}
+.year-bar-bg{height:3px;background:rgba(255,255,255,.06);border-radius:99px;margin-top:7px;overflow:hidden}
+.year-bar{height:100%;border-radius:99px}
+.year-sub{font-size:10px;color:#3a5a70;margin-top:5px}
+.year-abw{font-size:10px;margin-top:2px}
+.tbl-wrap{overflow-x:auto;border-radius:11px;border:1px solid rgba(255,255,255,.08)}
+table{width:100%;border-collapse:collapse;font-size:12px}
+thead tr{background:rgba(0,80,180,.25)}
+th{padding:10px 14px;color:#5a9abf;font-weight:600;font-size:10px;letter-spacing:.05em;text-transform:uppercase;border-bottom:1px solid rgba(0,100,200,.2);white-space:nowrap}
+th:first-child{text-align:left}th:not(:first-child){text-align:right}
+td{padding:8px 14px;border-bottom:1px solid rgba(255,255,255,.04)}
+td:first-child{text-align:left}td:not(:first-child){text-align:right}
+.even{background:rgba(255,255,255,.015)}
+.info-box{background:rgba(0,100,220,.08);border:1px solid rgba(0,120,255,.2);border-radius:9px;padding:11px 14px;margin-bottom:16px;font-size:11px;color:#5a9abf;line-height:1.7}
+.eingabe-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:9px}
+.e-card{border-radius:9px;padding:12px 14px}
+.e-card.csv{background:rgba(0,100,220,.08);border:1px solid rgba(0,120,255,.22)}
+.e-card.manual{background:rgba(50,180,100,.08);border:1px solid rgba(50,180,100,.22)}
+.e-card.empty{background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.07)}
+.e-head{font-size:10px;color:#4a7a90;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;font-weight:500}
+.badge{font-size:8px;padding:1px 5px;border-radius:3px}
+.badge-csv{color:#0080ff;background:rgba(0,120,255,.15)}
+.badge-m{color:#44cc88;background:rgba(44,200,100,.15)}
+.e-val{font-size:17px;font-weight:700;cursor:pointer;padding:2px 0;display:flex;justify-content:space-between;align-items:center}
+.e-abw{font-size:10px;margin-top:4px}
+.e-input-wrap{display:flex;gap:5px;align-items:center}
+.e-input{width:100%;background:rgba(255,255,255,.08);border:1px solid rgba(0,150,255,.5);border-radius:6px;padding:5px 7px;color:#fff;font-size:14px;font-weight:700;outline:none;font-family:inherit}
+.e-unit{font-size:10px;color:#2a4a60;flex-shrink:0}
+.reset-btn{font-size:8px;color:#ff9966;background:rgba(255,100,50,.12);padding:1px 5px;border-radius:3px;border:none;cursor:pointer;font-family:inherit;margin-left:2px}
+footer{text-align:center;padding:16px 0 10px;font-size:10px;color:#1e3a50}
+@media(max-width:680px){.kpi-grid{grid-template-columns:repeat(2,1fr)}.year-grid{grid-template-columns:repeat(2,1fr)}.tab span{display:none}}
+</style>
+</head>
+<body>
+
+<div id="sync-bar"></div>
+<span id="sync-lbl"></span>
+
+<div id="setup-screen">
+  <div class="setup-box">
+    <h2>🚗 Leasing KM Tracker</h2>
+    <p>Einmalige Einrichtung – deine Daten werden in deinem GitHub-Repository gespeichert und sind auf allen Geräten verfügbar.</p>
+    <div class="setup-label">GitHub Username</div>
+    <input class="setup-input" id="inp-user" type="text" placeholder="z.B. andyowerner-dev" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+    <div class="setup-label">Personal Access Token</div>
+    <input class="setup-input" id="inp-token" type="password" placeholder="ghp_xxxxxxxxxxxx" autocomplete="off">
+    <div class="setup-label">Repository Name</div>
+    <input class="setup-input" id="inp-repo" type="text" placeholder="leasing-tracker" value="leasing-tracker" autocorrect="off" autocapitalize="off" spellcheck="false">
+    <button class="setup-btn" onclick="doSetup()">Verbinden &amp; starten →</button>
+    <div class="setup-error" id="setup-err"></div>
+    <div class="setup-note">🔒 Token wird nur lokal in deinem Browser gespeichert und nie weitergegeben.</div>
+  </div>
+</div>
+
+<nav id="app-nav" style="display:none">
+  <div class="nav-logo">🚗</div>
+  <div class="nav-title"><div class="t1">LEASING</div><div class="t2">KILOMETER TRACKER</div></div>
+  <div class="nav-tabs">
+    <button class="tab active" onclick="switchTab('dashboard')">📊 <span>Dashboard</span></button>
+    <button class="tab" onclick="switchTab('tabelle')">📋 <span>Tabelle</span></button>
+    <button class="tab" onclick="switchTab('eingabe')">✏️ <span>Eingabe</span></button>
+  </div>
+  <button class="nav-sync" onclick="syncNow()">↻ Sync</button>
+</nav>
+
+<main id="app-main" style="display:none">
+  <div id="panel-dashboard" class="panel active"></div>
+  <div id="panel-tabelle" class="panel"></div>
+  <div id="panel-eingabe" class="panel"></div>
+</main>
+<footer id="app-footer" style="display:none">Leasing KM Tracker · Start 01.01.2025 · 10'000 km/Jahr · 4 Jahre</footer>
+
+<script>
+var SOLL_PM=10000/12, MAX_YEAR=10000, MAX_TOTAL=40000;
+var MO=['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
+var CRED_KEY='lkg_creds';
+var CSV={'2025-03':355,'2025-04':1319,'2025-05':1241,'2025-06':1339,'2025-07':1914,'2025-08':729,'2025-09':1385,'2025-10':843,'2025-11':569,'2025-12':1191,'2026-01':733,'2026-02':444,'2026-03':400};
+
+var C={user:'',token:'',repo:''};
+try{var _c=JSON.parse(localStorage.getItem(CRED_KEY)||'{}');if(_c.user&&_c.token)C=_c;}catch(e){}
+
+var OV={}, SHA='', chartInst=null, curTab='dashboard';
+
+var ALL=(function(){
+  var a=[],idx=0;
+  for(var yr=2025;yr<=2028;yr++)for(var m=1;m<=12;m++){
+    idx++;var k=yr+'-'+(m<10?'0':'')+m;
+    a.push({key:k,yr:yr,m:m,idx:idx,label:MO[m-1]+' '+yr,short:MO[m-1]+"'"+String(yr).slice(2),soll:Math.round(SOLL_PM*idx),csv:CSV[k]!==undefined?CSV[k]:null});
+  }
+  return a;
+})();
+
+function ghH(){return{'Authorization':'token '+C.token,'Content-Type':'application/json','Accept':'application/vnd.github.v3+json'};}
+function ghU(f){return'https://api.github.com/repos/'+C.user+'/'+C.repo+'/contents/'+f;}
+
+function ss(state,msg){
+  var b=document.getElementById('sync-bar'),l=document.getElementById('sync-lbl');
+  b.className=state;
+  if(msg){l.textContent=msg;l.style.display='block';}else{l.style.display='none';}
+}
+
+function syncNow(){
+  ss('syncing','Lade...');
+  fetch(ghU('leasing_data.json'),{headers:ghH()})
+    .then(function(r){if(r.status===404)return null;if(!r.ok)throw new Error('HTTP '+r.status);return r.json();})
+    .then(function(d){
+      if(d){SHA=d.sha;OV=JSON.parse(decodeURIComponent(escape(atob(d.content.replace(/\n/g,''))))).overrides||{};}
+      ss('ok','Synchronisiert');render();setTimeout(function(){ss('','')},2000);
+    })
+    .catch(function(e){ss('error','Fehler');console.error(e);setTimeout(function(){ss('','')},3000);});
+}
+
+function saveNow(){
+  ss('syncing','Speichere...');
+  var content=JSON.stringify({overrides:OV,updated:new Date().toISOString()},null,2);
+  var enc=btoa(unescape(encodeURIComponent(content)));
+  var body={message:'Update km data',content:enc};
+  if(SHA)body.sha=SHA;
+  fetch(ghU('leasing_data.json'),{method:'PUT',headers:ghH(),body:JSON.stringify(body)})
+    .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();})
+    .then(function(d){SHA=d.content.sha;ss('ok','Gespeichert ✓');setTimeout(function(){ss('','')},2000);})
+    .catch(function(e){ss('error','Fehler beim Speichern');console.error(e);setTimeout(function(){ss('','')},3000);});
+}
+
+function doSetup(){
+  var u=document.getElementById('inp-user').value.trim();
+  var t=document.getElementById('inp-token').value.trim();
+  var r=document.getElementById('inp-repo').value.trim()||'leasing-tracker';
+  var err=document.getElementById('setup-err');
+  if(!u||!t){err.textContent='Bitte Username und Token eingeben.';err.style.display='block';return;}
+  err.style.display='none';
+  C={user:u,token:t,repo:r};
+  ss('syncing','Verbinde...');
+  fetch('https://api.github.com/repos/'+u+'/'+r,{headers:{'Authorization':'token '+t,'Accept':'application/vnd.github.v3+json'}})
+    .then(function(r){if(!r.ok)throw new Error('Repository nicht gefunden. Bitte Username «'+u+'» und Repository-Name «'+r+'» prüfen.');return r.json();})
+    .then(function(){
+      localStorage.setItem(CRED_KEY,JSON.stringify(C));
+      document.getElementById('setup-screen').style.display='none';
+      document.getElementById('app-nav').style.display='flex';
+      document.getElementById('app-main').style.display='block';
+      document.getElementById('app-footer').style.display='block';
+      syncNow();
+    })
+    .catch(function(e){ss('','');err.textContent=e.message;err.style.display='block';});
+}
+
+function getKm(k){if(OV[k]!==undefined)return OV[k];var m=ALL.find(function(x){return x.key===k});return m?m.csv:null;}
+function compute(){
+  var cum=0;
+  return ALL.map(function(m){var km=getKm(m.key),has=km!==null&&km!==''&&!isNaN(Number(km));if(has)cum+=Number(km);var ist=has?cum:null,abw=ist!==null?ist-m.soll:null;return Object.assign({},m,{km:km,has:has,ist:ist,abw:abw});});
+}
+function fmt(n){if(n===null||n===undefined)return'—';return Number(n).toLocaleString('de-CH');}
+
+function switchTab(t){
+  curTab=t;
+  document.querySelectorAll('.tab').forEach(function(b,i){b.classList.toggle('active',['dashboard','tabelle','eingabe'][i]===t);});
+  document.querySelectorAll('.panel').forEach(function(p){p.classList.remove('active');});
+  document.getElementById('panel-'+t).classList.add('active');
+  render();
+}
+
+function render(){if(curTab==='dashboard')renderDash();else if(curTab==='tabelle')renderTable();else renderEingabe();}
+
+function renderDash(){
+  var ms=compute(),last=null;
+  for(var i=ms.length-1;i>=0;i--){if(ms[i].has){last=ms[i];break;}}
+  var ist=last?last.ist:0,soll=last?last.soll:0,abw=ist-soll;
+  var abwPct=soll>0?((abw/soll)*100).toFixed(1):0;
+  var mLeft=ms.filter(function(m){return!m.has}).length;
+  var avg=mLeft>0?Math.round((MAX_TOTAL-ist)/mLeft):0;
+  var pct=Math.min(Math.round((ist/MAX_TOTAL)*100),100);
+  var isOver=abw>500,isWarn=abw>0&&abw<=500;
+  var ac=isOver?'#ff5555':isWarn?'#ffaa00':'#22d3a0';
+  var lastIdx=last?last.idx:0;
+
+  var ys=[2025,2026,2027,2028].map(function(yr){
+    var t=ms.filter(function(m){return m.yr===yr&&m.has}).reduce(function(s,m){return s+Number(m.km);},0);
+    return{yr:yr,t:t,abw:t-MAX_YEAR,pct:Math.round((t/MAX_YEAR)*100)};
+  });
+
+  var kH=['<div class="kpi"><div class="kpi-icon">📍</div><div class="kpi-label">Gefahren gesamt</div><div class="kpi-val" style="color:#00aaff">'+fmt(ist)+' km</div><div class="kpi-sub">kumuliert seit Start</div><div class="kpi-glow" style="background:#00aaff"></div></div>',
+    '<div class="kpi"><div class="kpi-icon">🏁</div><div class="kpi-label">Gesamtbudget</div><div class="kpi-val" style="color:#22d3a0">40\'000 km</div><div class="kpi-sub">4 × 10\'000 km/Jahr</div><div class="kpi-glow" style="background:#22d3a0"></div></div>',
+    '<div class="kpi"><div class="kpi-icon">'+(isOver?'⚠️':'✅')+'</div><div class="kpi-label">Abw. vs. Soll</div><div class="kpi-val" style="color:'+ac+'">'+(abw>=0?'+':'')+fmt(abw)+' km</div><div class="kpi-sub">'+(abw>=0?'+':'')+abwPct+'% ggü. Soll</div><div class="kpi-glow" style="background:'+ac+'"></div></div>',
+    '<div class="kpi"><div class="kpi-icon">📅</div><div class="kpi-label">Noch erlaubt/Mt.</div><div class="kpi-val" style="color:#c084fc">'+fmt(avg)+' km</div><div class="kpi-sub">'+mLeft+' Monate verbleibend</div><div class="kpi-glow" style="background:#c084fc"></div></div>'
+  ].join('');
+
+  var barC=isOver?'linear-gradient(90deg,#ff6b6b,#ff3333)':'linear-gradient(90deg,#0060d0,#00c6ff)';
+
+  var yH=ys.map(function(y){
+    var kc=y.t>MAX_YEAR?'#ff6b6b':y.t>0?'#00aaff':'#2a4060';
+    var bw=Math.min((y.t/MAX_YEAR)*100,100);
+    return'<div class="year-card"><div class="year-nr">'+y.yr+'</div><div class="year-km" style="color:'+kc+'">'+(y.t>0?fmt(y.t)+' km':'— km')+'</div><div class="year-bar-bg"><div class="year-bar" style="width:'+bw+'%;background:'+(y.t>MAX_YEAR?'#ff5555':'#0070f3')+'"></div></div><div class="year-sub">'+(y.t>0?y.pct+"% von 10'000 km":"Budget: 10'000 km")+'</div>'+(y.t>0?'<div class="year-abw" style="color:'+(y.abw>0?'#ff9966':'#66cc88')+'">'+(y.abw>=0?'+':'')+fmt(y.abw)+' km vs. Budget</div>':'')+'</div>';
+  }).join('');
+
+  document.getElementById('panel-dashboard').innerHTML=
+    '<div class="kpi-grid">'+kH+'</div>'
+    +'<div class="card"><div class="prog-header"><span class="card-title" style="margin:0">Gesamtbudget verbraucht</span><span style="font-size:11px;color:#3a6080">'+fmt(ist)+' / 40\'000 km · '+pct+'%</span></div><div class="prog-bg"><div class="prog-fill" style="width:'+pct+'%;background:'+barC+'"></div></div><div class="prog-labels"><span>0 km</span><span>20\'000 km</span><span>40\'000 km</span></div></div>'
+    +'<div class="card"><div class="card-title">Soll vs. Ist – kumulierter Kilometerstand</div><div class="chart-legend"><div class="legend-item"><div class="legend-dot" style="background:#00aaff"></div><span>Ist kumuliert</span></div><div class="legend-item"><div class="legend-dot" style="background:#22d3a0;opacity:.7"></div><span>Soll kumuliert</span></div></div><div class="chart-wrap"><canvas id="myChart"></canvas></div></div>'
+    +'<div class="year-grid">'+yH+'</div>';
+
+  setTimeout(function(){drawChart(ms,lastIdx);},50);
+}
+
+function drawChart(ms,lastIdx){
+  if(chartInst){chartInst.destroy();chartInst=null;}
+  var canvas=document.getElementById('myChart');
+  if(!canvas)return;
+  var show=ms.filter(function(m){return m.idx<=Math.min(lastIdx+8,48);});
+  chartInst=new Chart(canvas,{
+    type:'line',
+    data:{labels:show.map(function(m){return m.short;}),datasets:[
+      {label:'Ist kumuliert',data:show.map(function(m){return m.ist;}),borderColor:'#00aaff',backgroundColor:'rgba(0,170,255,.08)',borderWidth:2.5,pointRadius:3,pointBackgroundColor:'#00aaff',tension:.3,spanGaps:false,fill:true},
+      {label:'Soll kumuliert',data:show.map(function(m){return m.soll;}),borderColor:'#22d3a0',backgroundColor:'transparent',borderWidth:2,pointRadius:0,borderDash:[6,3],tension:.1,fill:false}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+      plugins:{legend:{display:false},tooltip:{backgroundColor:'#0d2240',borderColor:'rgba(0,150,255,.3)',borderWidth:1,titleColor:'#a8d4ff',bodyColor:'#8ab8d8',callbacks:{label:function(ctx){return ctx.dataset.label+': '+(ctx.parsed.y===null?'—':ctx.parsed.y.toLocaleString('de-CH')+' km');}}}},
+      scales:{x:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#3a6080',font:{size:10},maxRotation:45}},y:{grid:{color:'rgba(255,255,255,.05)'},min:0,ticks:{color:'#3a6080',font:{size:10},callback:function(v){return v>=1000?(v/1000).toFixed(0)+'k':v;}}}}}
+  });
+}
+
+function renderTable(){
+  var ms=compute(),last=null;
+  for(var i=ms.length-1;i>=0;i--){if(ms[i].has){last=ms[i];break;}}
+  var lastIdx=last?last.idx:0,today=new Date();
+  var rows=ms.filter(function(m){return m.idx<=Math.max(lastIdx+4,14);}).map(function(m,i){
+    var isNow=m.yr===today.getFullYear(),ac=m.abw===null?'#2a4a60':m.abw>500?'#ff6b6b':m.abw>0?'#ffaa44':'#44cc88';
+    var stat=m.abw===null?'—':m.abw>500?'⚠ Über Budget':m.abw>0?'↑ Knapp':'✓ Im Budget';
+    return'<tr class="'+(i%2===0?'even':'')+'"><td style="color:'+(isNow?'#a8d4ff':'#5a7a90')+';font-weight:'+(isNow?600:400)+'">'+m.label+'</td><td style="color:'+(m.has?'#00aaff':'#1e3a50')+';font-weight:'+(m.has?600:400)+'">'+(m.has?fmt(m.km):'—')+'</td><td style="color:'+(m.ist?'#3ab0e0':'#1e3a50')+'">'+(m.ist?fmt(m.ist):'—')+'</td><td style="color:#2a7050">'+fmt(m.soll)+'</td><td style="color:'+ac+';font-weight:'+(m.abw!==null?600:400)+'">'+(m.abw!==null?(m.abw>=0?'+':'')+fmt(m.abw):'—')+'</td><td style="color:'+ac+'">'+stat+'</td></tr>';
+  }).join('');
+  document.getElementById('panel-tabelle').innerHTML='<div class="tbl-wrap"><table><thead><tr><th>Monat</th><th>km Monat</th><th>kum. Ist</th><th>kum. Soll</th><th>Abweichung</th><th>Status</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+}
+
+function renderEingabe(){
+  var ms=compute(),last=null;
+  for(var i=ms.length-1;i>=0;i--){if(ms[i].has){last=ms[i];break;}}
+  var lastIdx=last?last.idx:0;
+  var cards=ms.filter(function(m){return m.idx<=lastIdx+6;}).map(function(m){
+    var isC=CSV[m.key]!==undefined&&OV[m.key]===undefined,isM=OV[m.key]!==undefined;
+    var cls=isC?'csv':isM?'manual':'empty',vc=m.has?(isC?'#3ab0e8':'#66dd88'):'#2a4060';
+    var badge=isC?'<span class="badge badge-csv">CSV</span>':isM?'<span class="badge badge-m">✓</span><button class="reset-btn" onclick="resetKey(\''+m.key+'\')">✕</button>':'';
+    var abwH=m.abw!==null?'<div class="e-abw" style="color:'+(m.abw>0?'#ff9966':'#55cc88')+'">'+(m.abw>=0?'+':'')+fmt(m.abw)+' km vs. Soll</div>':'';
+    return'<div class="e-card '+cls+'" id="ec-'+m.key+'"><div class="e-head"><span>'+m.label+'</span><div style="display:flex;gap:3px;align-items:center">'+badge+'</div></div><div class="e-val" style="color:'+vc+'" onclick="startEdit(\''+m.key+'\')"><span>'+(m.has?fmt(m.km)+' km':'— km')+'</span><span style="font-size:12px;color:#2a4060;opacity:.5">✏</span></div>'+abwH+'</div>';
+  }).join('');
+  document.getElementById('panel-eingabe').innerHTML='<div class="info-box">💡 Tippe auf ein Feld zum Bearbeiten &nbsp;·&nbsp; <strong style="color:#a8d4ff">Enter</strong> speichern &nbsp;·&nbsp; Daten werden automatisch in GitHub gespeichert ☁️</div><div class="eingabe-grid">'+cards+'</div>';
+}
+
+function startEdit(key){
+  var card=document.getElementById('ec-'+key);if(!card)return;
+  var val=card.querySelector('.e-val');if(!val)return;
+  var cur=getKm(key),wrap=document.createElement('div');
+  wrap.className='e-input-wrap';
+  wrap.innerHTML='<input class="e-input" id="ei-'+key+'" type="number" min="0" max="9999" value="'+(cur!==null?cur:'')+'"><span class="e-unit">km</span>';
+  val.parentNode.replaceChild(wrap,val);
+  var inp=document.getElementById('ei-'+key);
+  if(inp){inp.focus();inp.select();
+    inp.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();commitEdit(key);}if(e.key==='Escape'){e.preventDefault();render();}});
+    inp.addEventListener('blur',function(){commitEdit(key);});}
+}
+
+function commitEdit(key){
+  var inp=document.getElementById('ei-'+key);if(!inp)return;
+  var v=inp.value.trim();
+  if(v===''||isNaN(Number(v))){delete OV[key];}else{OV[key]=Number(v);}
+  render();saveNow();
+}
+
+function resetKey(key){delete OV[key];render();saveNow();}
+
+// Init
+document.getElementById('inp-user').value='andyowerner-dev';
+if(C.user&&C.token){
+  document.getElementById('setup-screen').style.display='none';
+  document.getElementById('app-nav').style.display='flex';
+  document.getElementById('app-main').style.display='block';
+  document.getElementById('app-footer').style.display='block';
+  syncNow();
+}
+
+window.addEventListener('resize',function(){
+  if(curTab==='dashboard'&&chartInst){var ms=compute(),last=null;for(var i=ms.length-1;i>=0;i--){if(ms[i].has){last=ms[i];break;}}drawChart(ms,last?last.idx:0);}
+});
+</script>
+</body>
+</html>
